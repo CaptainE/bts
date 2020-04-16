@@ -22,6 +22,8 @@ from torchvision import transforms
 from PIL import Image
 import os
 import random
+from skimage import io
+
 
 from distributed_sampler_no_evenly_divisible import *
 
@@ -85,6 +87,11 @@ class DataLoadPreprocess(Dataset):
         else:
             with open(args.filenames_file, 'r') as f:
                 self.filenames = f.readlines()
+        import glob
+        filelist = glob.glob("/home/pebert/dataset/wireframe/train/*_label.npz")
+        #filelist.sort()
+
+        self.filenames = filelist
     
         self.mode = mode
         self.transform = transform
@@ -93,7 +100,7 @@ class DataLoadPreprocess(Dataset):
     
     def __getitem__(self, idx):
         sample_path = self.filenames[idx]
-        focal = float(sample_path.split()[2])
+        focal = 0#float(sample_path.split()[2])
 
         if self.mode == 'train':
             if self.args.dataset == 'kitti' and self.args.use_right is True and random.random() > 0.5:
@@ -129,7 +136,7 @@ class DataLoadPreprocess(Dataset):
             depth_gt = np.expand_dims(depth_gt, axis=2)
 
             if self.args.dataset == 'nyu':
-                depth_gt = depth_gt / 1000.0
+                depth_gt = depth_gt #/ 1000.0
             else:
                 depth_gt = depth_gt / 256.0
 
@@ -143,8 +150,18 @@ class DataLoadPreprocess(Dataset):
             else:
                 data_path = self.args.data_path
 
-            image_path = os.path.join(data_path, "./" + sample_path.split()[0])
-            image = np.asarray(Image.open(image_path), dtype=np.float32) / 255.0
+            #image_path = os.path.join(data_path, "./" + sample_path.split()[0])
+
+            #(*) remove me,  From bts
+            iname = self.filenames[idx][:-10].replace("_a0", "").replace("_a1", "") + ".png"
+            image = io.imread(iname).astype(float)[:, :, :3]
+            if "a1" in self.filenames[idx]:
+                image = image[:, ::-1, :]
+            image = (image - np.array([109.730, 103.832, 98.681])) / np.array([22.275, 22.124, 23.229])
+            image = np.rollaxis(image, 2).copy()
+            image = np.asarray(image, dtype=np.float32).reshape(512,512,3)
+
+            #image = np.asarray(Image.open(image_path), dtype=np.float32) / 255.0
 
             if self.mode == 'online_eval':
                 gt_path = self.args.gt_path_eval
@@ -161,7 +178,7 @@ class DataLoadPreprocess(Dataset):
                     depth_gt = np.asarray(depth_gt, dtype=np.float32)
                     depth_gt = np.expand_dims(depth_gt, axis=2)
                     if self.args.dataset == 'nyu':
-                        depth_gt = depth_gt / 1000.0
+                        depth_gt = depth_gt #/ 1000.0
                     else:
                         depth_gt = depth_gt / 256.0
 

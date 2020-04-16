@@ -54,7 +54,7 @@ def convert_image(i, scene, depth_raw, image):
     if not os.path.exists(folder):
         os.makedirs(folder)
 
-    img_depth = depth_raw * 1000.0
+    img_depth = depth_raw #* 1000.0
     img_depth_uint16 = img_depth.astype(np.uint16)
     cv2.imwrite("%s/sync_depth_%05d.png" % (folder, i), img_depth_uint16)
     image = image[:, :, ::-1]
@@ -69,6 +69,9 @@ if __name__ == "__main__":
         print("usage: %s <h5_file> <train_test_split> <out_folder>" % sys.argv[0], file=sys.stderr)
         sys.exit(0)
 
+    #nyu_depth_v2_labeled.mat splits.mat ../../dataset/nyu_depth_v2/official_splits/
+
+    #sys.argv[1]
     h5_file = h5py.File(sys.argv[1], "r")
     # h5py is not able to open that file. but scipy is
     train_test = scipy.io.loadmat(sys.argv[2])
@@ -81,7 +84,7 @@ if __name__ == "__main__":
 
     depth_raw = h5_file['rawDepths']
 
-    print("reading", sys.argv[1])
+    print("reading", argv1)
 
     images = h5_file['images']
     scenes = [u''.join(chr(c) for c in h5_file[obj_ref]) for obj_ref in h5_file['sceneTypes'][0]]

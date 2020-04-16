@@ -27,6 +27,7 @@ import torch
 import torch.nn as nn
 from torch.autograd import Variable
 from bts_dataloader import *
+from bts import BtsModel
 
 import errno
 import matplotlib.pyplot as plt
@@ -45,15 +46,15 @@ def convert_arg_line_to_args(arg_line):
 parser = argparse.ArgumentParser(description='BTS PyTorch implementation.', fromfile_prefix_chars='@')
 parser.convert_arg_line_to_args = convert_arg_line_to_args
 
-parser.add_argument('--model_name', type=str, help='model name', default='bts_nyu_v2')
+parser.add_argument('--model_name', type=str, help='model name', default='wireframe')
 parser.add_argument('--encoder', type=str, help='type of encoder, vgg or desenet121_bts or densenet161_bts',
                     default='resnet50_bts')
-parser.add_argument('--data_path', type=str, help='path to the data', required=True)
-parser.add_argument('--filenames_file', type=str, help='path to the filenames text file', required=True)
-parser.add_argument('--input_height', type=int, help='input height', default=480)
-parser.add_argument('--input_width', type=int, help='input width', default=640)
-parser.add_argument('--max_depth', type=float, help='maximum depth in estimation', default=80)
-parser.add_argument('--checkpoint_path', type=str, help='path to a specific checkpoint to load', default='')
+parser.add_argument('--data_path', type=str, help='path to the data', default='/home/pebert/dataset/wireframe/valid/') # '/home/pebert/dataset/wireframe/train/'
+parser.add_argument('--filenames_file', type=str, help='path to the filenames text file', default='/home/pebert/bts/train_test_inputs/lcnndata_train.txt')
+parser.add_argument('--input_height', type=int, help='input height', default=512) #480
+parser.add_argument('--input_width', type=int, help='input width', default=512) #640
+parser.add_argument('--max_depth', type=float, help='maximum depth in estimation', default=10)
+parser.add_argument('--checkpoint_path', type=str, help='path to a specific checkpoint to load', default='/home/pebert/bts/pytorch/models/bts_nyu_v2_pytorch_resnet50/model')
 parser.add_argument('--dataset', type=str, help='dataset to train on, make3d or nyudepthv2', default='nyu')
 parser.add_argument('--do_kb_crop', help='if set, crop input images as kitti benchmark images', action='store_true')
 parser.add_argument('--save_lpg', help='if set, save outputs from lpg layers', action='store_true')
@@ -68,10 +69,10 @@ else:
 model_dir = os.path.dirname(args.checkpoint_path)
 sys.path.append(model_dir)
 
-for key, val in vars(__import__(args.model_name)).items():
-    if key.startswith('__') and key.endswith('__'):
-        continue
-    vars()[key] = val
+#for key, val in vars(__import__(args.model_name)).items():
+#    if key.startswith('__') and key.endswith('__'):
+ #       continue
+  #  vars()[key] = val
 
 
 def get_num_lines(file_path):
@@ -98,6 +99,10 @@ def test(params):
 
     with open(args.filenames_file) as f:
         lines = f.readlines()
+    
+    import glob
+    lines = glob.glob("/home/pebert/dataset/wireframe/valid/*_label.npz")
+    #lines.sort()
 
     print('now testing {} files with {}'.format(num_test_samples, args.checkpoint_path))
 
@@ -110,8 +115,10 @@ def test(params):
     start_time = time.time()
     with torch.no_grad():
         for _, sample in enumerate(tqdm(dataloader.data)):
+            #if _ > 300:
+            #    break
             image = Variable(sample['image'].cuda())
-            focal = Variable(sample['focal'].cuda())
+            focal = []#Variable(sample['focal'].cuda())
             # Predict
             lpg8x8, lpg4x4, lpg2x2, reduc1x1, depth_est = model(image, focal)
             pred_depths.append(depth_est.cpu().numpy().squeeze())
@@ -138,7 +145,7 @@ def test(params):
             if e.errno != errno.EEXIST:
                 raise
     
-    for s in tqdm(range(num_test_samples)):
+    for s in tqdm(range(len(lines))):
         if args.dataset == 'kitti':
             date_drive = lines[s].split('/')[1]
             filename_pred_png = save_name + '/raw/' + date_drive + '_' + lines[s].split()[0].split('/')[-1].replace(
@@ -151,21 +158,18 @@ def test(params):
             filename_cmap_png = save_name + '/cmap/' + lines[s].split()[0].split('/')[-1].replace('.jpg', '.png')
             filename_image_png = save_name + '/rgb/' + lines[s].split()[0].split('/')[-1]
         else:
-            scene_name = lines[s].split()[0].split('/')[0]
-            filename_pred_png = save_name + '/raw/' + scene_name + '_' + lines[s].split()[0].split('/')[1].replace(
-                '.jpg', '.png')
-            filename_cmap_png = save_name + '/cmap/' + scene_name + '_' + lines[s].split()[0].split('/')[1].replace(
-                '.jpg', '.png')
-            filename_gt_png = save_name + '/gt/' + scene_name + '_' + lines[s].split()[0].split('/')[1].replace(
-                '.jpg', '.png')
-            filename_image_png = save_name + '/rgb/' + scene_name + '_' + lines[s].split()[0].split('/')[1]
-        
-        rgb_path = os.path.join(args.data_path, './' + lines[s].split()[0])
+            scene_name = lines[s].split('/')[-1].split('_label')[0]#lines[s].split()[0].split('/')[0]
+            filename_pred_png = save_name + '/raw/' + scene_name + '_' + 'depth.png'
+            filename_cmap_png = save_name + '/cmap/' + scene_name + '_' + 'depth.png'
+            filename_gt_png = save_name + '/gt/' + scene_name + '_' + 'depth.png'
+            filename_image_png = save_name + '/rgb/' + scene_name + '_' + 'depth'
+            
+        rgb_path = os.path.join(lines[s][:-10].replace("_a0", "").replace("_a1", "") + ".png")#os.path.join(args.data_path, './' + lines[s].split()[0])
         image = cv2.imread(rgb_path)
-        if args.dataset == 'nyu':
-            gt_path = os.path.join(args.data_path, './' + lines[s].split()[1])
-            gt = cv2.imread(gt_path, -1).astype(np.float32) / 1000.0  # Visualization purpose only
-            gt[gt == 0] = np.amax(gt)
+        #if args.dataset == 'nyu':
+        #    gt_path = os.path.join(args.data_path, './' + lines[s].split()[1])
+        #    gt = cv2.imread(gt_path, -1).astype(np.float32) #/ 1000.0  # Visualization purpose only
+        #    gt[gt == 0] = np.amax(gt)
         
         pred_depth = pred_depths[s]
         pred_8x8 = pred_8x8s[s]
@@ -173,14 +177,15 @@ def test(params):
         pred_2x2 = pred_2x2s[s]
         pred_1x1 = pred_1x1s[s]
         
-        if args.dataset == 'kitti' or args.dataset == 'kitti_benchmark':
-            pred_depth_scaled = pred_depth * 256.0
-        else:
-            pred_depth_scaled = pred_depth * 1000.0
+        #if args.dataset == 'kitti' or args.dataset == 'kitti_benchmark':
+        #    pred_depth_scaled = pred_depth * 256.0
+        #else:
+        pred_depth_scaled = pred_depth * 1000.0
         
         pred_depth_scaled = pred_depth_scaled.astype(np.uint16)
         cv2.imwrite(filename_pred_png, pred_depth_scaled, [cv2.IMWRITE_PNG_COMPRESSION, 0])
-        
+        #'/home/pebert/bts/tmp2.png'
+            
         if args.save_lpg:
             cv2.imwrite(filename_image_png, image[10:-1 - 9, 10:-1 - 9, :])
             if args.dataset == 'nyu':
