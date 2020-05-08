@@ -157,9 +157,9 @@ class DataLoadPreprocess(Dataset):
             image = io.imread(iname).astype(float)[:, :, :3]
             if "a1" in self.filenames[idx]:
                 image = image[:, ::-1, :]
-            image = (image - np.array([109.730, 103.832, 98.681])) / np.array([22.275, 22.124, 23.229])
-            image = np.rollaxis(image, 2).copy()
-            image = np.asarray(image, dtype=np.float32).reshape(512,512,3)
+            #image = (image - np.array([109.730, 103.832, 98.681])) / np.array([22.275, 22.124, 23.229])
+            #image = np.rollaxis(image, 2).copy()
+            image = np.asarray(image, dtype=np.float32).reshape(512,512,3)/255.0
 
             #image = np.asarray(Image.open(image_path), dtype=np.float32) / 255.0
 
@@ -258,7 +258,7 @@ class DataLoadPreprocess(Dataset):
 class ToTensor(object):
     def __init__(self, mode):
         self.mode = mode
-        self.normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        self.normalize =  transforms.Normalize(mean=[0.0, 0.0, 0.0], std=[1.0, 1.0, 1.0]) #transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     
     def __call__(self, sample):
         image, focal = sample['image'], sample['focal']

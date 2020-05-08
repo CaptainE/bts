@@ -48,13 +48,13 @@ parser.convert_arg_line_to_args = convert_arg_line_to_args
 
 parser.add_argument('--model_name', type=str, help='model name', default='wireframe')
 parser.add_argument('--encoder', type=str, help='type of encoder, vgg or desenet121_bts or densenet161_bts',
-                    default='resnet50_bts')
-parser.add_argument('--data_path', type=str, help='path to the data', default='/home/pebert/dataset/wireframe/valid/') # '/home/pebert/dataset/wireframe/train/'
+                    default='densenet161_bts') # 'resnet50_bts'
+parser.add_argument('--data_path', type=str, help='path to the data', default='/home/pebert/dataset/wireframe/train/') # '/home/pebert/dataset/wireframe/train/'
 parser.add_argument('--filenames_file', type=str, help='path to the filenames text file', default='/home/pebert/bts/train_test_inputs/lcnndata_train.txt')
 parser.add_argument('--input_height', type=int, help='input height', default=512) #480
 parser.add_argument('--input_width', type=int, help='input width', default=512) #640
 parser.add_argument('--max_depth', type=float, help='maximum depth in estimation', default=10)
-parser.add_argument('--checkpoint_path', type=str, help='path to a specific checkpoint to load', default='/home/pebert/bts/pytorch/models/bts_nyu_v2_pytorch_resnet50/model')
+parser.add_argument('--checkpoint_path', type=str, help='path to a specific checkpoint to load', default='/home/pebert/bts/pytorch/models/bts_nyu_v2_pytorch_densenet161/model')
 parser.add_argument('--dataset', type=str, help='dataset to train on, make3d or nyudepthv2', default='nyu')
 parser.add_argument('--do_kb_crop', help='if set, crop input images as kitti benchmark images', action='store_true')
 parser.add_argument('--save_lpg', help='if set, save outputs from lpg layers', action='store_true')
@@ -101,7 +101,7 @@ def test(params):
         lines = f.readlines()
     
     import glob
-    lines = glob.glob("/home/pebert/dataset/wireframe/valid/*_label.npz")
+    lines = glob.glob("/home/pebert/dataset/wireframe/train/*_label.npz")
     #lines.sort()
 
     print('now testing {} files with {}'.format(num_test_samples, args.checkpoint_path))
@@ -180,9 +180,17 @@ def test(params):
         #if args.dataset == 'kitti' or args.dataset == 'kitti_benchmark':
         #    pred_depth_scaled = pred_depth * 256.0
         #else:
-        pred_depth_scaled = pred_depth * 1000.0
+
+        pred_depth_scaled = pred_depth/pred_depth.max() * 300.0
+
+        pred_depth_scaled[pred_depth_scaled < 1e-3] = 1e-3
+        pred_depth_scaled[pred_depth_scaled > 300] = 300
+        pred_depth_scaled[np.isinf(pred_depth_scaled)] = 300
+        pred_depth_scaled[np.isnan(pred_depth_scaled)] = 1e-3
+
         
-        pred_depth_scaled = pred_depth_scaled.astype(np.uint16)
+        
+        pred_depth_scaled = pred_depth_scaled.astype(np.float32)
         cv2.imwrite(filename_pred_png, pred_depth_scaled, [cv2.IMWRITE_PNG_COMPRESSION, 0])
         #'/home/pebert/bts/tmp2.png'
             
